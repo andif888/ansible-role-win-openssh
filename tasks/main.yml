@@ -1,0 +1,114 @@
+---
+# tasks file for ansible-role-win-openssh
+- name: Ensure extract dir exists
+  ansible.windows.win_file:
+    path: '{{ win_openssh_extract_dir }}'
+    state: directory
+
+- name: Download
+  ansible.windows.win_get_url:
+    url: '{{ win_openssh_download_url }}'
+    dest: '{{ win_openssh_extract_dir }}\'
+    force: false
+
+- name: Unzip
+  community.windows.win_unzip:
+    src: '{{ win_openssh_extract_dir }}\{{ win_openssh_filename_zip }}'
+    dest: '{{ win_openssh_extract_dir }}'
+
+- name: Ensure install dir exists
+  ansible.windows.win_file:
+    path: '{{ win_openssh_install_dir }}'
+    state: directory
+
+- name: Copy file to install dir
+  ansible.windows.win_copy:
+    src: '{{ win_openssh_extract_dir }}\{{ win_openssh_extract_dir_name }}\'
+    dest: '{{ win_openssh_install_dir }}\'
+    remote_src: yes
+
+- name: Execute Install Script
+  ansible.windows.win_command: powershell.exe -ExecutionPolicy ByPass -File install-sshd.ps1
+  args:
+    chdir: '{{ win_openssh_install_dir }}'
+  register: execute_install_script_result
+
+- name: Debug execute_install_script_result
+  debug:
+    var: execute_install_script_result
+
+- name: Firewall rule to allow SSH on TCP port 22
+  community.windows.win_firewall_rule:
+    name: OpenSSH SSH Server (sshd)
+    localport: 22
+    action: allow
+    direction: in
+    protocol: tcp
+    state: present
+    enabled: true
+  when: win_openssh_server_firewall_open
+
+- name: Set the default shell to Powershell
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\OpenSSH
+    name: DefaultShell
+    data: '{{ win_openssh_server_shell_powershell_executable }}'
+    state: present
+  when: win_openssh_server_shell_powershell
+
+- name: set the default shell to CMD
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\OpenSSH
+    name: DefaultShell
+    state: absent
+  when: win_openssh_server_shell_powershell == false
+
+- name: copy administrators_authorized_keys to programdata
+  ansible.windows.win_copy:
+    src: '{{ win_openssh_server_administrators_authorized_keys }}'
+    dest: '{{ ansible_env.ProgramData }}\ssh\administrators_authorized_keys'
+  when: win_openssh_server_set_administrators_authorized_keys
+
+- name: Disable ACL Inheritance on administrators_authorized_keys in programdata
+  ansible.windows.win_acl_inheritance:
+    path: '{{ ansible_env.ProgramData }}\ssh\administrators_authorized_keys'
+    reorganize: yes
+    state: absent
+  when: win_openssh_server_set_administrators_authorized_keys
+
+- name: Get local admin group name
+  ansible.windows.win_shell: |
+    $admins = ([System.Security.Principal.SecurityIdentifier]'S-1-5-32-544').Translate( [System.Security.Principal.NTAccount]).Value
+    write-host $admins
+  register: localadmin_result
+  changed_when: false
+  when: win_openssh_server_set_administrators_authorized_keys
+
+- name: ACL FullControl for Administrators on administrators_authorized_keys
+  ansible.windows.win_acl:
+    path: '{{ ansible_env.ProgramData }}\ssh\administrators_authorized_keys'
+    user: '{{ localadmin_result.stdout | trim }}'
+    rights: FullControl
+    type: allow
+    state: present
+  when: win_openssh_server_set_administrators_authorized_keys
+
+- name: ACL FullControl for SYSTEM on administrators_authorized_keys
+  ansible.windows.win_acl:
+    path: '{{ ansible_env.ProgramData }}\ssh\administrators_authorized_keys'
+    user: SYSTEM
+    rights: FullControl
+    type: allow
+    state: present
+  when: win_openssh_server_set_administrators_authorized_keys
+
+- name: Start sshd service
+  ansible.windows.win_service:
+    name: sshd
+    start_mode: auto
+    state: started
+
+# - name: Delete extract dir
+#   ansible.windows.win_file:
+#     path: '{{ win_openssh_extract_dir }}'
+#     state: absent

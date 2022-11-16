@@ -1,0 +1,16 @@
+---
+# defaults file for ansible-role-win-openssh
+win_openssh_version: 'v8.9.1.0p1-Beta'
+win_openssh_extract_dir: 'C:\windows\temp\openssh'
+win_openssh_extract_dir_name: 'OpenSSH-Win64' 
+win_openssh_filename_zip: '{{ win_openssh_extract_dir_name }}.zip'
+win_openssh_download_url: 'https://github.com/PowerShell/Win32-OpenSSH/releases/download/{{ win_openssh_version }}/{{ win_openssh_filename_zip }}'
+win_openssh_install_dir: 'C:\Program Files\OpenSSH'
+
+win_openssh_server_shell_powershell: true
+win_openssh_server_shell_powershell_executable: '{{ ansible_env.SystemRoot }}\System32\WindowsPowerShell\v1.0\powershell.exe'
+
+win_openssh_server_firewall_open: true
+
+win_openssh_server_set_administrators_authorized_keys: false
+win_openssh_server_administrators_authorized_keys: "{{ lookup('env', 'HOME') + '/.ssh/id_rsa.pub' }}"
