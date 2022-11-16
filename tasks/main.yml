@@ -43,6 +43,7 @@
     localport: 22
     action: allow
     direction: in
+    program: any
     protocol: tcp
     state: present
     enabled: true
