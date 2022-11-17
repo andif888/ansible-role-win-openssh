@@ -102,13 +102,25 @@
     state: present
   when: win_openssh_server_set_administrators_authorized_keys
 
+- name: Ensure remove old OpenSSH in PATH environment variable
+  ansible.windows.win_path:
+    elements: '%SYSTEMROOT%\System32\OpenSSH\'
+    scope: machine
+    state: absent
+
+- name: Ensure add new OpenSSH in PATH environment variable
+  ansible.windows.win_path:
+    elements: '{{ win_openssh_install_dir }}\'
+    scope: machine
+    state: present
+
 - name: Start sshd service
   ansible.windows.win_service:
     name: sshd
     start_mode: auto
     state: started
 
-# - name: Delete extract dir
-#   ansible.windows.win_file:
-#     path: '{{ win_openssh_extract_dir }}'
-#     state: absent
+- name: Delete extract dir
+  ansible.windows.win_file:
+    path: '{{ win_openssh_extract_dir }}'
+    state: absent
